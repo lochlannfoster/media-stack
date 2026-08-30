@@ -1,0 +1,25 @@
+#!/bin/sh
+# Radarr On Import -> rich ntfy "ready" with poster + tap-to-open Jellyfin.
+# Rendered by install-automation.sh (tokens __LIKE_THIS__ replaced) and dropped into the Radarr container.
+[ "${radarr_eventtype:-}" = "Test" ] && { echo ok; exit 0; }
+case "${radarr_eventtype:-}" in Download|Upgrade) : ;; *) exit 0 ;; esac
+KEY="__RADARR_KEY__"; API="http://radarr:7878/api/v3"
+QS=__QUIET_START__; QE=__QUIET_END__; TOPIC="__TOPIC_MEDIA__"
+# live overrides set from the control panel (quiet-hours / topic), if present
+LOCAL=/config/controllarr/settings.local
+if [ -f "$LOCAL" ]; then
+  v=$(grep -E '^NOTIFY_QUIET_START=' "$LOCAL" | cut -d= -f2); [ -n "$v" ] && QS=$v
+  v=$(grep -E '^NOTIFY_QUIET_END=' "$LOCAL" | cut -d= -f2); [ -n "$v" ] && QE=$v
+  v=$(grep -E '^NTFY_TOPIC_MEDIA=' "$LOCAL" | cut -d= -f2); [ -n "$v" ] && TOPIC=$v
+fi
+NTFY="http://ntfy/$TOPIC"
+title="${radarr_movie_title:-Movie} (${radarr_movie_year:-})"
+poster=$(curl -s --max-time 15 -H "X-Api-Key: $KEY" "$API/movie/${radarr_movie_id}" | grep -oE 'https://image[.]tmdb[.]org/[^"]+[.]jpg' | head -1)
+# quiet hours: same semantics as warden_lib._quiet_now — a window that wraps past midnight (e.g. 22-06) works too
+H=$(date +%H); H=$((10#$H)); PRIO=default
+if [ "$QS" -le "$QE" ]; then { [ "$H" -ge "$QS" ] && [ "$H" -lt "$QE" ]; } && PRIO=min
+else { [ "$H" -ge "$QS" ] || [ "$H" -lt "$QE" ]; } && PRIO=min; fi
+curl -s --max-time 15 -H "Title: Ready to watch: ${radarr_movie_title:-Movie}" -H "Tags: clapper" \
+  -H "Priority: $PRIO" -H "Click: http://__SERVER_HOST__:__JELLYFIN_PORT__" ${poster:+-H "Attach: $poster"} \
+  -d "$title is downloaded and ready in Jellyfin." "$NTFY" >/dev/null 2>&1
+exit 0

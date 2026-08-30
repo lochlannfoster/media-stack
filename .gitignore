@@ -1,0 +1,26 @@
+# --- secrets & per-install runtime (never commit) ---
+.env
+secrets.env
+warden.env
+tailscale.env
+active/
+controllarr/                  # the control panel's clone; install.sh fetches it
+docker-compose.override.yml
+INSTALL-SUMMARY.txt
+install-*.log
+uninstall-*.log
+*-state.json
+.*-state
+__pycache__/
+
+# --- overlays are their own repositories ---
+overlay/
+overlay-summary.txt
+
+# --- AI-assistant working files: kept local, never part of the project ---
+.claude/
+CLAUDE.md
+
+# --- test tooling ---
+.venv/
+.ruff_cache/

@@ -1,0 +1,11 @@
+# Correctness-only lint. The code base deliberately uses one-line defs and
+# semicolons, so the style families (E1/E2/E3/E7) stay off; what is on finds real defects:
+# undefined names, unused imports/variables, bare excepts that swallow SystemExit, mutable defaults.
+target-version = "py312"          # the cron jobs run on the host's python3
+line-length = 200
+extend-exclude = ["docs", "controllarr"]
+[lint]
+select = ["F", "E9", "B006", "B008", "B015", "B018", "PLE"]
+ignore = ["F401"]                 # re-exports (warden_lib imports used by callers) are intentional
+[lint.per-file-ignores]
+"scripts/warden_lib.py" = ["E731"]

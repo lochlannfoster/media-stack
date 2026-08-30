@@ -1,0 +1,31 @@
+#!/bin/sh
+# Sonarr custom script -> notify ONCE when a whole series is complete. POSIX/BusyBox-safe.
+# Rendered by install-automation.sh and dropped into the Sonarr container.
+API="http://sonarr:8989/api/v3"; KEY="__SONARR_KEY__"
+QS=__QUIET_START__; QE=__QUIET_END__; TOPIC="__TOPIC_MEDIA__"
+LOCAL=/config/controllarr/settings.local   # live overrides from the control panel
+if [ -f "$LOCAL" ]; then
+  v=$(grep -E '^NOTIFY_QUIET_START=' "$LOCAL" | cut -d= -f2); [ -n "$v" ] && QS=$v
+  v=$(grep -E '^NOTIFY_QUIET_END=' "$LOCAL" | cut -d= -f2); [ -n "$v" ] && QE=$v
+  v=$(grep -E '^NTFY_TOPIC_MEDIA=' "$LOCAL" | cut -d= -f2); [ -n "$v" ] && TOPIC=$v
+fi
+NTFY="http://ntfy/$TOPIC"
+[ "${sonarr_eventtype:-}" = "Test" ] && { echo ok; exit 0; }
+[ -z "${sonarr_series_id:-}" ] && exit 0
+json=$(curl -s --max-time 15 -H "X-Api-Key: $KEY" "$API/series/${sonarr_series_id}" 2>/dev/null)
+[ -z "$json" ] && exit 0
+have=$(printf '%s' "$json" | grep -oE '"episodeFileCount": *[0-9]+' | tail -1 | grep -oE '[0-9]+')
+total=$(printf '%s' "$json" | grep -oE '"episodeCount": *[0-9]+' | tail -1 | grep -oE '[0-9]+')
+title=$(printf '%s' "$json" | grep -oE '"title": *"[^"]*"' | head -1 | sed 's/.*"title": *"//; s/"$//')
+[ -z "$total" ] && exit 0; [ "$total" -eq 0 ] && exit 0
+if [ "${have:-0}" -ge "$total" ]; then
+  poster=$(printf '%s' "$json" | grep -oE 'https://artworks[.]thetvdb[.]com/[^"]+|https://image[.]tmdb[.]org/[^"]+[.]jpg' | head -1)
+  # quiet hours: same semantics as warden_lib._quiet_now — a window that wraps past midnight (e.g. 22-06) works too
+  H=$(date +%H); H=$((10#$H)); PRIO=default
+  if [ "$QS" -le "$QE" ]; then { [ "$H" -ge "$QS" ] && [ "$H" -lt "$QE" ]; } && PRIO=min
+  else { [ "$H" -ge "$QS" ] || [ "$H" -lt "$QE" ]; } && PRIO=min; fi
+  curl -s --max-time 15 -H "Title: Ready to watch: ${title:-Series}" -H "Tags: tv,white_check_mark" \
+    -H "Priority: $PRIO" -H "Click: http://__SERVER_HOST__:__JELLYFIN_PORT__" ${poster:+-H "Attach: $poster"} \
+    -d "All ${total} episodes of ${title:-this series} are downloaded and ready to watch." "$NTFY" >/dev/null 2>&1
+fi
+exit 0
