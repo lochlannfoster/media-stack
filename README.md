@@ -58,4 +58,4 @@ see [Development ▸ Overlays](docs/DEVELOPMENT.md#5-overlays).
 
 ## Licence
 
-MIT.
+GPL-3.0, the same licence as Radarr, Sonarr, Prowlarr and Bazarr.
