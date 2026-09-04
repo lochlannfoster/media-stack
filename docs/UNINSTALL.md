@@ -8,10 +8,10 @@
 
 **How:** `docker compose --env-file .env --profile '*' down --remove-orphans --volumes`, then every crontab line containing `<repo>/active` and their `/tmp/mediastack-*.lock` files. Root-owned files are removed through a throwaway `alpine` container, so no `sudo` is needed; if even that fails you get a `[!]` with the path.
 
-**Kept:** the repo, `.env`, `secrets.env`, the logs, `BACKUP_DIR`, `DATA_DIR` (unless purged), images (unless removed), host packages. A later `./install.sh` is therefore a clean reinstall with the same answers and passwords; anything that lived only in `CONFIG_DIR` (watch history, users, requests) is gone unless you restore a backup.
+**Kept:** the repo, `.env`, `secrets.env`, `vpn.env` (yours, never written by the installer — it holds a VPN credential, so delete it by hand if you are done with the machine), the logs, `BACKUP_DIR`, `DATA_DIR` (unless purged), images (unless removed), host packages. A later `./install.sh` is therefore a clean reinstall with the same answers and passwords; anything that lived only in `CONFIG_DIR` (watch history, users, requests) is gone unless you restore a backup.
 
 Finish by hand if you want: `rm -rf media-stack`, `rm -rf /srv/media/backups`, `rm -rf /srv/media/data`, `docker image prune -a`. Verify: `docker ps -a`, `docker volume ls`, `docker network ls | grep mediastack`, `crontab -l | grep media-stack/active`, `ls /srv/media/config` — all empty.
 
 ## Partial teardown
 
-Re-run `./install.sh` and answer no to the part: Tailscale, ntfy (its container is retired, `CONFIG_DIR/ntfy` stays), the automation or backups (the crontab is rewritten). To stop everything but keep it installed: `docker compose --env-file .env down` / `up -d`.
+Re-run `./install.sh` and answer no to the part: the VPN (gluetun goes, the routed services take their ports back), Tailscale, ntfy (its container is retired, `CONFIG_DIR/ntfy` stays), the automation or backups (the crontab is rewritten). To stop everything but keep it installed: `docker compose --env-file .env down` / `up -d`.

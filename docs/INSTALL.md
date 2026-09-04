@@ -28,11 +28,11 @@ Ports are checked right after `.env` is written; a clash is a warning — set th
 | Remote access | Add Tailscale? · node name · auth key | `TAILSCALE_ENABLED`, `TAILSCALE_HOSTNAME`, `tailscale.env`. A blank key with no earlier login = *NOT enabled*. | no · `mediastack` · — |
 | Credentials | Keep the existing service logins? (re-runs) · Use ONE shared admin login? · username / password | the four service UI logins in `secrets.env` | yes · yes · `admin` / generated |
 | Media users | How many media user accounts? · username / password · Can 'name' auto-approve their own requests? | `MEDIAUSER_N` — Jellyfin + Jellyseerr accounts; **#1 is the admin** | 1 · `userN` / generated · no |
-| Content | Preferred size (MB/min) · Audio language · Prefer h264? · Subtitle languages · OpenSubtitles account? | `SIZE_CAP_MBPM`, `AUDIO_LANGUAGE`, `PREFER_H264`, `SUBTITLE_LANGS`, `OPENSUBS_*` — [SERVICES.md ▸ Selection rules](SERVICES.md#selection-rules) | 20 · Original · yes · en · no |
+| Content | Audio language · Subtitle languages · OpenSubtitles account? | `AUDIO_LANGUAGE`, `SUBTITLE_LANGS`, `OPENSUBS_*` — [SERVICES.md ▸ Selection rules](SERVICES.md#selection-rules). Sizes and codec preferences are not asked: they are TRaSH Guides', applied from the panel. | Original · en · no |
 | Notifications *(with ntfy)* | Quiet-hours START / END hour | `NOTIFY_QUIET_START` / `_END` (media topic silent) | 0 / 9 |
 | Automation | Enable self-healing automation? · nightly encrypted config backups? · Backup directory | `ENABLE_WARDENS`, `ENABLE_BACKUPS`, `BACKUP_DIR` (always written) | yes · yes · `/srv/media/backups` |
 
-An overlay may add prompts of its own between *Optional* and *Remote access* ([DEVELOPMENT.md ▸ Overlays](DEVELOPMENT.md#5-overlays)). Never prompted, carried forward from `.env`: `*_PORT`, `CONTROLLARR_REFRESH`, `CONTROLLARR_REF`, `STACK_NAME`, `SIZE_MAX_MBPM`, `ALLOW_UNKNOWN_QUALITY`, `NTFY_URL`.
+An overlay may add prompts of its own between *Optional* and *Remote access* ([DEVELOPMENT.md ▸ Overlays](DEVELOPMENT.md#5-overlays)). Never prompted, carried forward from `.env`: `*_PORT`, `CONTROLLARR_REFRESH`, `CONTROLLARR_REF`, `STACK_NAME`, `NTFY_URL`.
 
 ## What it does, in order
 
@@ -48,7 +48,10 @@ An overlay may add prompts of its own between *Optional* and *Remote access* ([D
 ## Re-running
 
 - Previous answers are the defaults; secrets are never rotated behind your back; a blank Tailscale key keeps the old login.
-- `CONTROLLARR_REF` in `.env` pins the panel's version — change it and re-run to move up or roll back.
+- `CONTROLLARR_REF` in `.env` pins the panel's version — change it and re-run to move up or roll back. It
+  defaults to a **tag**, so the panel you get is the one this release was tested against; setting it to
+  `main` tracks the tip instead, and two installs a week apart will differ. A ref that does not exist
+  fails the install rather than quietly falling back to the default branch.
 - Turning a profile off retires its container but keeps `CONFIG_DIR/<app>`.
 - The `.env` content knobs are pushed into Radarr/Sonarr again, **overwriting** a size cap changed in Settings — set the value in `.env` first, or re-save in Settings afterwards.
 - `warden.env`, `controllarr.env`, the notify hooks and the crontab are regenerated; `settings.local`, `users.json` and `sessions.json` are never touched.

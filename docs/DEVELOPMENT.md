@@ -42,6 +42,11 @@ tests/run.sh compose   # docker compose config + tests/check_compose.py
 tests/run.sh all
 ```
 
+Exit codes are 0 pass, 1 fail, 2 usage, and 3 when the repair budget is spent — the same failing stages three
+times over on a changed tree. At that point stop editing and report the failure, what was tried and the
+evidence that would settle it. The budget is kept by the validation ledger named in `TEST_LEDGER`, set in the
+untracked `tests/local.env`; a checkout without that file runs identically and simply records nothing.
+
 `check_compose.py` enforces the invariants that bite silently: `container_name` equals the service key, a healthcheck and the `autoheal=true` label come as a pair, every `${VAR}` without a default is in `.env.example`, and the panel keeps its read-only socket, its pinned code mount, its `/health` probe and port 3002.
 
 ## 5. Overlays
@@ -60,6 +65,20 @@ tests/run.sh all
 | `cron.sh` | automation | emit `job "<schedule>" <script> <timeout>` lines |
 | `wiring.sh` | after the core wiring | configure its own services |
 | `overlay-summary.txt` | the summary | appended to `INSTALL-SUMMARY.txt` |
+
+### Routing an overlay's services through the VPN
+
+The `gluetun` container belongs to this repository — a service key cannot appear twice in one Compose file, so an overlay must not emit one of its own. It contributes to the tunnel declaratively instead, by setting three variables in `prompts.sh` that the VPN block reads:
+
+| Variable | What |
+|---|---|
+| `OVERLAY_ROUTABLE` | space-separated service keys, appended to the installer's own `VPN_ROUTABLE` (`radarr sonarr bazarr`) to form what the VPN prompt offers |
+| `OVERLAY_ROUTE_PORTS` | the `      - "${X_PORT:-n}:n"` lines gluetun should publish for them, newline-terminated, `printf`-ready |
+| `OVERLAY_ROUTED_CFG` | `KEY=VALUE` pairs applied **only if** the tunnel is created — typically `X_HOST=gluetun`, since inside the shared namespace a routed container is no longer reachable by its own name |
+
+The overlay's `compose.sh` still emits its services, but must emit each one *already routed* (`network_mode: "service:gluetun"`, no `ports`, no `dns`) when `CFG[VPN_ENABLED]` is true, for the same one-key-one-definition reason. Test the routing decision on `CFG[VPN_ROUTE]` with whole-word matching, not a substring.
+
+The ordering is the awkward part and the reason `OVERLAY_ROUTED_CFG` is deferred rather than applied directly: `prompts.sh` runs in *Optional services*, before the VPN question exists. An overlay declares what it *could* route; this repository decides what actually is.
 
 The rule that keeps the split honest: **this repository never learns what an overlay is for.** It exposes hooks; the overlay supplies everything else.
 

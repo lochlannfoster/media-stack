@@ -14,10 +14,10 @@ class LoadEnv(unittest.TestCase):
         root = tempfile.mkdtemp(prefix="mc-env-"); os.makedirs(os.path.join(root, "controllarr"))
         p = os.path.join(root, "app.env")
         with open(p, "w") as f: f.write(f"# comment\nCONFIG_DIR={root}\nQBIT_PASS='p a$s'\nEMPTY=\nPLAIN=x=y\n  INDENTED=1\nNOEQUALS\n")
-        with open(os.path.join(root, "controllarr", "settings.local"), "w") as f: f.write("SIZE_CAP_MBPM=9\nPLAIN=override\n")
+        with open(os.path.join(root, "controllarr", "settings.local"), "w") as f: f.write("MIN_SEEDERS=9\nPLAIN=override\n")
         d = warden_lib.load_env(p)
         self.assertEqual(d["QBIT_PASS"], "p a$s"); self.assertEqual(d["EMPTY"], ""); self.assertEqual(d["PLAIN"], "override")
-        self.assertEqual(d["SIZE_CAP_MBPM"], "9"); self.assertEqual(d["INDENTED"], "1"); self.assertNotIn("NOEQUALS", d)
+        self.assertEqual(d["MIN_SEEDERS"], "9"); self.assertEqual(d["INDENTED"], "1"); self.assertNotIn("NOEQUALS", d)
         self.assertEqual(warden_lib.load_env("/nonexistent"), {})
     def test_quiet_hours_wrap_midnight(self):
         with mock.patch.dict(warden_lib.E, {"NOTIFY_QUIET_START": "22", "NOTIFY_QUIET_END": "7"}):

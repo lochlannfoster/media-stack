@@ -12,6 +12,10 @@ ENV_FILE="$HERE/.env"
 SECRETS_FILE="$HERE/secrets.env"
 # An optional site overlay: a directory with any of overlay.env (defaults), prompts.sh, compose.yml,
 # wiring.sh, cron.sh. MEDIA_STACK_OVERLAY points at it; each hook is sourced or read where it belongs.
+# An overlay's prompts.sh may also set three variables, read by the VPN block below: OVERLAY_ROUTABLE
+# (space-separated service keys it can route), OVERLAY_ROUTE_PORTS (printf-ready `      - "a:b"` lines
+# gluetun should publish for them) and OVERLAY_ROUTED_CFG (KEY=VALUE pairs to apply only if the tunnel is
+# created). They exist because the overlay's prompts run before the VPN question is asked.
 OVERLAY="${MEDIA_STACK_OVERLAY:-}"
 
 # shellcheck source=lib/common.sh
@@ -87,7 +91,7 @@ else
   set_sec CONTROLLARR_PASSWORD "$CONTROLLARR_PW"
 fi
 set_cfg CONTROLLARR_REPO "$(d CONTROLLARR_REPO https://github.com/lochlannfoster/controllarr.git)"
-set_cfg CONTROLLARR_REF  "$(d CONTROLLARR_REF main)"
+set_cfg CONTROLLARR_REF  "$(d CONTROLLARR_REF v0.1.0)"   # a tag, never a branch: see the fetch below
 
 section "Optional services"
 PROFILES=()
@@ -122,6 +126,33 @@ if yesno "Add Tailscale, so you can reach this stack from your own devices witho
 fi
 [ "$TAILSCALE_ENABLED" = true ] || set_cfg TAILSCALE_ENABLED false
 
+# ---- VPN (optional): one gluetun tunnel for the services that talk to third parties ----
+# Jellyfin and Jellyseerr are deliberately NOT routable: Jellyfin serves LAN clients and Jellyseerr talks
+# to TMDB, so tunnelling either adds failure modes and buys nothing. An overlay contributes its own
+# services through OVERLAY_ROUTABLE / OVERLAY_ROUTE_PORTS, set in its prompts.sh (sourced further up).
+section "VPN (optional)"
+VPN_ENABLED=false; VPN_ROUTE=""
+VPN_ROUTABLE="radarr sonarr bazarr${OVERLAY_ROUTABLE:+ $OVERLAY_ROUTABLE}"
+if yesno "Route outbound traffic for ${VPN_ROUTABLE// /, } through a VPN?" "$(dyn VPN_ENABLED n)"; then
+  info "gluetun provides the tunnel and supports ~50 providers. Put your provider's settings in vpn.env — docs/services/gluetun.md has an example for WireGuard and one for OpenVPN."
+  if [ ! -f "$HERE/vpn.env" ]; then
+    warn "vpn.env does not exist — the VPN is NOT enabled. Write it (docs/services/gluetun.md) and re-run ./install.sh."
+  elif ! grep -qE '^[[:space:]]*VPN_SERVICE_PROVIDER=[^[:space:]]' "$HERE/vpn.env"; then
+    warn "vpn.env sets no VPN_SERVICE_PROVIDER — the VPN is NOT enabled. See docs/services/gluetun.md."
+  else
+    VPN_ENABLED=true; VPN_ROUTE="$VPN_ROUTABLE"
+  fi
+fi
+# A tunnel with nothing behind it is a container that does nothing and protects nothing.
+[ -z "$VPN_ROUTE" ] && { [ "$VPN_ENABLED" = true ] && warn "Nothing would go through the VPN — NOT enabled."; VPN_ENABLED=false; }
+set_cfg VPN_ENABLED "$VPN_ENABLED"; set_cfg VPN_ROUTE "$VPN_ROUTE"
+# Values an overlay declared as true only once the tunnel exists (its services' hosts become `gluetun`,
+# since inside the shared namespace they are no longer reachable by their own container name). The
+# overlay cannot set these itself: its prompts run before this decision is made.
+if [ "$VPN_ENABLED" = true ] && [ -n "${OVERLAY_ROUTED_CFG:-}" ]; then
+  for _kv in $OVERLAY_ROUTED_CFG; do set_cfg "${_kv%%=*}" "${_kv#*=}"; done
+fi
+
 section "Credentials"
 SERVICES=(jellyfin radarr sonarr bazarr)
 if [ -n "${OLD[RADARR_PASS]:-}" ] && yesno "Keep the existing service logins (from the previous run)?" y; then
@@ -151,9 +182,9 @@ done
 set_cfg MEDIAUSER_COUNT "${NUSERS:-1}"
 
 section "Content preferences"
-ask SIZE_CAP_MBPM "Preferred size (MB per minute of runtime; hard max = 1.25x, floor 50)" "$(d SIZE_CAP_MBPM 20)"; set_cfg SIZE_CAP_MBPM "$SIZE_CAP_MBPM"
-ask AUDIO_LANGUAGE "Audio language (Original = native language, dubs penalised; or Any/English)" "$(d AUDIO_LANGUAGE Original)"; set_cfg AUDIO_LANGUAGE "$AUDIO_LANGUAGE"
-if yesno "Prefer h264 over x265? (yes if the host CPU can't hardware-decode HEVC)" "$(dyn PREFER_H264 y)"; then set_cfg PREFER_H264 true; else set_cfg PREFER_H264 false; fi
+# Sizes and codec preferences are not asked here any more: they are TRaSH Guides' job, previewed and applied
+# from Controllarr (Settings > Quality & size > TRaSH Guides). This installer sets no custom format.
+ask AUDIO_LANGUAGE "Audio language for films (Original = native language; or Any/English)" "$(d AUDIO_LANGUAGE Original)"; set_cfg AUDIO_LANGUAGE "$AUDIO_LANGUAGE"
 ask SUBTITLE_LANGS "Subtitle language codes (comma)" "$(d SUBTITLE_LANGS en)"; set_cfg SUBTITLE_LANGS "$SUBTITLE_LANGS"
 if [ -n "${OLD[OPENSUBS_PASS]:-}" ]; then
   set_sec OPENSUBS_USER "${OLD[OPENSUBS_USER]:-}"; set_sec OPENSUBS_PASS "${OLD[OPENSUBS_PASS]}"; info "OpenSubtitles account: keeping the existing one"
@@ -183,7 +214,7 @@ else
 fi
 # knobs that are never prompted but must survive a re-run (ports, refresh interval, ...)
 for k in "${!OLD[@]}"; do
-  case "$k" in *_PORT|CONTROLLARR_REFRESH|STACK_NAME|SIZE_MAX_MBPM|ALLOW_UNKNOWN_QUALITY|NTFY_URL)
+  case "$k" in *_PORT|CONTROLLARR_REFRESH|STACK_NAME|NTFY_URL)
     [ -z "${CFG[$k]:-}" ] && set_cfg "$k" "${OLD[$k]}";; esac
 done
 
@@ -200,16 +231,26 @@ check_ports_for_profiles "${CFG[COMPOSE_PROFILES]:-}"
 # 3. THE CONTROL PANEL, FROM ITS OWN REPOSITORY
 # ---------------------------------------------------------------------------
 section "Control panel"
+# CONTROLLARR_REF is a TAG by default, so two people installing a week apart get the same panel and a
+# broken commit on the panel's main branch cannot reach anyone's install. Every path below must actually
+# honour it: the old fallback dropped --branch and silently left you on the default branch, which is the
+# unpinned failure wearing a disguise.
 step "Fetching Controllarr (${CFG[CONTROLLARR_REF]})"
+_cref="${CFG[CONTROLLARR_REF]}"
 if [ -d "$HERE/controllarr/.git" ]; then
-  ( cd "$HERE/controllarr" && run "controllarr fetch" git fetch --depth 1 origin "${CFG[CONTROLLARR_REF]}" && run "controllarr checkout" git checkout -q FETCH_HEAD )
+  ( cd "$HERE/controllarr" \
+      && run "controllarr fetch" git fetch --depth 1 --force origin "$_cref" \
+      && run "controllarr checkout" git checkout -q --detach FETCH_HEAD ) \
+    || die "Could not check out Controllarr $_cref in $HERE/controllarr. Delete that directory and re-run, or set CONTROLLARR_REF in .env to a ref that exists."
 else
   rm -rf "$HERE/controllarr"
-  run "controllarr clone" git clone --depth 1 --branch "${CFG[CONTROLLARR_REF]}" "${CFG[CONTROLLARR_REPO]}" "$HERE/controllarr" \
-    || run "controllarr clone" git clone "${CFG[CONTROLLARR_REPO]}" "$HERE/controllarr"
+  run "controllarr clone" git clone --depth 1 --branch "$_cref" "${CFG[CONTROLLARR_REPO]}" "$HERE/controllarr" \
+    || { run "controllarr clone (full)" git clone "${CFG[CONTROLLARR_REPO]}" "$HERE/controllarr" \
+         && ( cd "$HERE/controllarr" && run "controllarr checkout" git checkout -q --detach "$_cref" ); } \
+    || die "Could not fetch Controllarr $_cref from ${CFG[CONTROLLARR_REPO]} — check the network and that the ref exists, or set CONTROLLARR_REPO in .env to a local clone."
 fi
 [ -f "$HERE/controllarr/app/controllarr.py" ] || die "Could not fetch Controllarr from ${CFG[CONTROLLARR_REPO]} — check the network, or set CONTROLLARR_REPO in .env to a local clone."
-step_ok "Controllarr at $(cd "$HERE/controllarr" && git rev-parse --short HEAD)"
+step_ok "Controllarr at $(cd "$HERE/controllarr" && git rev-parse --short HEAD) ($_cref)"
 
 # ---------------------------------------------------------------------------
 # 4. GENERATE runtime config (dirs, override)
@@ -249,6 +290,23 @@ OVR_BODY="$(
     printf '    volumes:\n      - "${CONFIG_DIR}/tailscale:/var/lib/tailscale"\n      - /lib/modules:/lib/modules:ro\n'
     printf '    healthcheck: {test: ["CMD", "tailscale", "status", "--peers=false"], interval: 60s, timeout: 10s, retries: 3, start_period: 60s}\n'
     printf '    labels: [autoheal=true]\n    restart: unless-stopped\n'
+  fi
+  if [ "${CFG[VPN_ENABLED]:-false}" = true ]; then
+    # gluetun owns the tunnel and the firewall. Routed containers share its network namespace, so when the
+    # tunnel drops they have no network at all — that is the point. Their published ports move here, and
+    # both `ports` and `dns` must be reset on them: Docker refuses `dns` together with `network_mode:
+    # service:` at run time, though `docker compose config` accepts it.
+    _vpn_routed() { case " ${CFG[VPN_ROUTE]:-} " in *" $1 "*) return 0;; *) return 1;; esac; }
+    printf '  gluetun:\n    image: qmcgaw/gluetun:latest\n    container_name: gluetun\n'
+    printf '    cap_add: [NET_ADMIN]\n    devices: ["/dev/net/tun:/dev/net/tun"]\n    env_file: [./vpn.env]\n'
+    printf '    labels: [autoheal=true]\n    restart: unless-stopped\n    ports:\n'
+    _vpn_routed radarr && printf '      - "${RADARR_PORT:-7878}:7878"\n'
+    _vpn_routed sonarr && printf '      - "${SONARR_PORT:-8989}:8989"\n'
+    _vpn_routed bazarr && printf '      - "${BAZARR_PORT:-6767}:6767"\n'
+    printf '%s' "${OVERLAY_ROUTE_PORTS:-}"
+    for _s in radarr sonarr bazarr; do
+      _vpn_routed "$_s" && printf '  %s:\n    network_mode: "service:gluetun"\n    ports: !reset []\n    dns: !reset []\n    depends_on: {gluetun: {condition: service_healthy}}\n' "$_s"
+    done
   fi
   if [ -n "$OVERLAY" ] && [ -f "$OVERLAY/compose.sh" ]; then
     # shellcheck disable=SC1090

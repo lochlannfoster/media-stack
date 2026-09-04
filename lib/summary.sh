@@ -21,6 +21,7 @@ cat <<EOT
 EOT
 has notify && echo "  ntfy                         http://$H:${NTFY_PORT:-8090}  (topics: ${NTFY_TOPIC_MEDIA:-media} = content, ${NTFY_TOPIC_ADMIN:-admin} = ops)"
 [ "${TAILSCALE_ENABLED:-false}" = true ] && echo "  Tailscale: ON — from another device on your tailnet, open http://${TAILSCALE_HOSTNAME:-mediastack}:${JELLYFIN_PORT:-8096}"
+[ "${VPN_ENABLED:-false}" = true ] && echo "  VPN: ON — ${VPN_ROUTE:-} leave through the tunnel; if gluetun stops they have no network (docs/services/gluetun.md)"
 [ -f "$HERE/overlay-summary.txt" ] && { echo; cat "$HERE/overlay-summary.txt"; }
 
 echo

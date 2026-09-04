@@ -26,8 +26,9 @@ Core services always run; ntfy is a Compose profile (`COMPOSE_PROFILES`), Tailsc
 | [**autoheal**](services/autoheal.md) | — | restarts unhealthy containers labelled `autoheal=true` | Docker socket (rw) |
 | [**ntfy**](services/ntfy.md) | 8090 | push topics `media` (quiet-hours aware) and `admin` | `CONFIG_DIR/ntfy` |
 | [**Tailscale**](services/tailscale.md) | host network | the stack reachable from your own devices, nothing opened on the router | `tailscale.env`; `CONFIG_DIR/tailscale` |
+| [**gluetun**](services/gluetun.md) | publishes the routed services' ports | optional VPN tunnel for Radarr, Sonarr and Bazarr's outbound traffic | `vpn.env` |
 
-Services reach each other by container name on the Compose bridge (`http://radarr:7878`). Radarr, Sonarr, Bazarr and Jellyseerr use public DNS (`1.1.1.1`, `9.9.9.9`) so lookups do not depend on the router.
+Services reach each other by container name on the Compose bridge (`http://radarr:7878`). Radarr, Sonarr, Bazarr and Jellyseerr use public DNS (`1.1.1.1`, `9.9.9.9`) so lookups do not depend on the router — except where [gluetun](services/gluetun.md) routes one, which takes over both its DNS and its published port.
 
 ## What this stack does not include
 
@@ -46,12 +47,13 @@ Mounted at `/data` in Radarr, Sonarr and Bazarr, and at `/data/media` in Jellyfi
 
 ## Selection rules
 
-Set at install, changed live in **Settings ▸ Quality & size**; the installer and the panel both write through the same `settings_ops.py`, so they agree.
+**Which release is worth having is TRaSH Guides' answer, not this stack's.** Custom formats, their scores, which qualities a profile allows and the size limit per quality come from the guide, and are previewed as a diff and applied on a press in **Settings ▸ Quality & size ▸ TRaSH Guides**. This installer creates no custom format and writes no size limit; nothing here syncs on a schedule.
 
-- **Size:** `SIZE_CAP_MBPM` is the *preferred* size in every quality definition; the hard max is `SIZE_MAX_MBPM` (blank = `max(1.25 × cap, 50)`); a max below the preferred value is clamped up; the minimum is forced down to 2 MB/min.
-- **Audio language:** enforced with custom formats because Sonarr v4 profiles have no language field — *Dubbed-penalty* (both, −1000, a release-title regex) and *Original-language* (Sonarr, +50); Radarr also sets the profile language. Switching away zeroes the scores rather than deleting the formats.
-- **Prefer h264:** *x265-HEVC* −500, *x264-H264* +100 (for hosts without HEVC decode).
-- Every profile: upgrades allowed, `minFormatScore` −10000 (formats steer, never block), unknown quality off unless enabled.
+What the installer and the panel do still set, through the same `settings_ops.py` so they agree:
+
+- **Audio language:** `AUDIO_LANGUAGE` sets the language on Radarr's quality profiles. Sonarr v4 profiles have no language field, so TV has no equivalent — the custom formats that used to fake one are the guide's now.
+- **Release threshold:** `MIN_SEEDERS`, per indexer, plus Prowlarr's app profile so its sync does not undo it.
+- **Media management:** propers, renaming, hardlinks, the recycle bin and the free-space floor.
 
 ## Removing a title
 

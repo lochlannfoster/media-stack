@@ -23,6 +23,9 @@ SERVICES="radarr,sonarr,bazarr,jellyfin,jellyseerr"
 EXPECTED="jellyfin,radarr,sonarr,bazarr,jellyseerr,controllarr,autoheal"
 case ",$COMPOSE_PROFILES," in *,notify,*) SERVICES="$SERVICES,ntfy"; EXPECTED="$EXPECTED,ntfy";; esac
 [ "${TAILSCALE_ENABLED:-false}" = true ] && EXPECTED="$EXPECTED,tailscale"
+# gluetun matters more than most: the services routed through it share its network namespace, so a
+# dead tunnel is a dead Radarr/Sonarr/Bazarr and the wardens should say gluetun, not all three.
+[ "${VPN_ENABLED:-false}" = true ] && EXPECTED="$EXPECTED,gluetun"
 # an overlay contributes its own service and container names
 [ -n "$OVERLAY" ] && [ -f "$OVERLAY/services.sh" ] && { # shellcheck disable=SC1090
   source "$OVERLAY/services.sh"; }
@@ -65,7 +68,6 @@ NTFY_TOPIC_MEDIA=${NTFY_TOPIC_MEDIA:-media}
 NTFY_TOPIC_ADMIN=${NTFY_TOPIC_ADMIN:-admin}
 NOTIFY_QUIET_START=${NOTIFY_QUIET_START:-0}
 NOTIFY_QUIET_END=${NOTIFY_QUIET_END:-9}
-SIZE_CAP_MBPM=${SIZE_CAP_MBPM:-20}
 EXPECTED_CONTAINERS=$EXPECTED
 BACKUP_DIR=${BACKUP_DIR:-$(dirname "$CONFIG_DIR")/backups}
 BACKUP_KEEP=${BACKUP_KEEP:-7}
@@ -111,7 +113,6 @@ NTFY_TOPIC_MEDIA=${NTFY_TOPIC_MEDIA:-media}
 NTFY_TOPIC_ADMIN=${NTFY_TOPIC_ADMIN:-admin}
 NOTIFY_QUIET_START=${NOTIFY_QUIET_START:-0}
 NOTIFY_QUIET_END=${NOTIFY_QUIET_END:-9}
-SIZE_CAP_MBPM=${SIZE_CAP_MBPM:-20}
 SUBTITLE_LANGS=${SUBTITLE_LANGS:-en}
 EOF
 [ "$ENABLE_NOTIFY" = true ] && echo "NTFY_HOST=ntfy" >> "$CTRL_ENV"

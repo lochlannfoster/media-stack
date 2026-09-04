@@ -8,7 +8,7 @@
 #   tests/run.sh compose    docker compose config + the invariants in tests/check_compose.py
 #   tests/run.sh all        lint + unit + compose
 #
-# Exit codes: 0 pass, 1 fail, 2 usage.
+# Exit codes: 0 pass, 1 fail, 2 usage, 3 the repair budget is spent (stop editing and report).
 set -u
 R="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 T="$R/tests"
@@ -61,5 +61,21 @@ case "$cmd" in
 esac
 echo "validation: ${stages[*]}   (logs: $LOG_DIR)"
 for s in "${stages[@]}"; do run "$s" "stage_$s"; done
-if [ ${#failed[@]} -eq 0 ]; then echo "RESULT: PASS (${stages[*]})"; exit 0; fi
-echo "RESULT: FAIL — ${failed[*]}"; exit 1
+# tests/local.env is optional and untracked: it names TEST_LEDGER, the validation ledger each outcome is
+# recorded through. Without it the run simply goes unrecorded — the suite's verdict is unchanged either way.
+# shellcheck source=/dev/null
+[ -f "$T/local.env" ] && . "$T/local.env"
+LEDGER="${TEST_LEDGER:-}"
+if [ ${#failed[@]} -eq 0 ]; then
+  echo "RESULT: PASS (${stages[*]})"
+  [ -n "$LEDGER" ] && [ -f "$LEDGER" ] && python3 -I "$LEDGER" record --status pass
+  exit 0
+fi
+echo "RESULT: FAIL — ${failed[*]}"
+# The failing stage names are the fingerprint: the same ones failing again on a changed tree is one repair
+# attempt, and the ledger returns 3 when the budget of three is spent.
+if [ -n "$LEDGER" ] && [ -f "$LEDGER" ]; then
+  python3 -I "$LEDGER" record --status fail --fingerprint "${failed[*]}"; rc=$?
+  [ $rc -eq 3 ] && exit 3
+fi
+exit 1

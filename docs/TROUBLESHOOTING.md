@@ -31,6 +31,19 @@ Related: [INSTALL.md](INSTALL.md) · [SERVICES.md](SERVICES.md) · [AUTOMATION.m
 | reachable by tailnet IP, not by name | MagicDNS off | enable it in the admin console |
 | the node keeps asking to re-authenticate | node key expiry | *Disable key expiry* for the machine in the admin console |
 
+## The VPN
+
+Everything routed through gluetun shares its network namespace, so a symptom that looks like three broken services is one broken tunnel. Check `docker logs gluetun` before anything else.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Radarr, Sonarr or Bazarr unreachable right after enabling the VPN | the tunnel never came up, so they have no network | `docker logs gluetun` — usually a wrong key, a lapsed subscription or a country with no server ([services/gluetun.md](services/gluetun.md)) |
+| the gluetun container is *unhealthy* | bad credentials, or `VPN_SERVICE_PROVIDER` misspelled in `vpn.env` | gluetun's log names the provider it expected; fix `vpn.env` and `docker compose up -d gluetun` |
+| the installer says the VPN is **not** enabled | `vpn.env` is missing, or sets no `VPN_SERVICE_PROVIDER` | write it ([services/gluetun.md](services/gluetun.md)) and re-run `./install.sh` — it will not start a tunnel it cannot verify |
+| *Nothing would go through the VPN* | every routable service was declined | answer yes to at least one, or leave the VPN off: an empty tunnel protects nothing |
+| a routed service should be back on the LAN directly | — | re-run `./install.sh` and answer no; the override is regenerated and the ports return to the services |
+| metadata and subtitles got slow | the exit server is far away | a nearer `SERVER_COUNTRIES` in `vpn.env` |
+
 ## The library
 
 | Symptom | Why | Fix |
@@ -58,6 +71,7 @@ Related: [INSTALL.md](INSTALL.md) · [SERVICES.md](SERVICES.md) · [AUTOMATION.m
 - *Port already in use* → `*_PORT` in `.env`, re-run (a bare `compose up` does not update `warden.env` or the hooks).
 - *invalid volume specification* → a directory in `.env` is not an absolute path; re-run, the prompts insist on `/…`.
 - *Wiring failed* → an app was still starting; re-run, it is idempotent.
+- *Port already in use* on a routed service → gluetun publishes it now, so the clash is with gluetun; the `*_PORT` variable is still the one to change.
 - No `/dev/dri` → CPU transcoding; keep *Prefer h264*.
 
 ## Still stuck

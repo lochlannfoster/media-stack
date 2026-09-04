@@ -120,12 +120,11 @@ def wire_arr(app, port_env, default_port, root_path, is_tv):
 def _wire_arr_content(app, R):
     """Quality, size, language, media management and the UI login — everything that does not depend on a client."""
     # via the shared settings_ops writer, so the panel and this installer agree.
-    # AUDIO_LANGUAGE "Original" = the title's native language (anime -> Japanese, US shows -> English);
-    # dubbed releases get a heavy custom-format penalty on both apps.
-    content = {"size_cap": cfg("SIZE_CAP_MBPM", "20"), "size_max": cfg("SIZE_MAX_MBPM") or "",
-               "audio_language": cfg("AUDIO_LANGUAGE", "Original"),
-               "allow_unknown": cfg("ALLOW_UNKNOWN_QUALITY", "false") == "true",
-               "prefer_h264": cfg("PREFER_H264", "true") == "true"}
+    # AUDIO_LANGUAGE "Original" = the title's native language (anime -> Japanese, US shows -> English). It is a
+    # real field on a Radarr quality profile; Sonarr v4 has none, and settings_ops ignores it there.
+    # Release sizes and custom formats are deliberately absent: they belong to TRaSH Guides, and the installer
+    # writing one figure over every quality definition is exactly what that replaced.
+    content = {"audio_language": cfg("AUDIO_LANGUAGE", "Original")}
     errs = settings_ops.apply_content(content, arr, apps=(app,), log=log.info)
     for e in errs: log.warning("%s: %s", app, e)
     # media management: import extra files (subs)
@@ -138,9 +137,9 @@ def _wire_arr_content(app, R):
     from wiring_media import _arr_style_auth
     _arr_style_auth(R, "/config/host", sec(f"{app.upper()}_USER"), sec(f"{app.upper()}_PASS"), name=app)
 
-# (quality / size / language live in the control panel's settings_ops.py — one writer for both.
-#  Size semantics: SIZE_CAP_MBPM is the *preferred* size; the hard max defaults to max(1.25×cap, 50) MB/min
-#  so normal 1080p (30-60 MB/min) still clears.)
+# (language, seeders and media management live in the control panel's settings_ops.py — one writer for both.
+#  Quality itself is not written by anything here: custom formats, their scores and the per-quality size limits
+#  come from TRaSH Guides, previewed and applied in the panel. See controllarr's docs/DASHBOARD.md ▸ Settings.)
 
 # ---------------- orchestration ----------------
 def main():

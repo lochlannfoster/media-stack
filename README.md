@@ -30,6 +30,7 @@ passwords are kept. `./uninstall.sh` removes it all.
 | [autoheal](docs/services/autoheal.md) | — | Restarts unhealthy containers |
 | [ntfy](docs/services/ntfy.md) | `localhost:8090` | Phone notifications (optional) |
 | [Tailscale](docs/services/tailscale.md) | — | Private remote access (optional) |
+| [gluetun](docs/services/gluetun.md) | — | VPN tunnel for Radarr/Sonarr/Bazarr's outbound traffic (optional) |
 
 `localhost` is the server; from another device use its LAN address. Ports are
 `*_PORT` in `.env`. LAN-only by design.
@@ -43,6 +44,20 @@ your choosing) and everything else here works around them.
 
 Until you do, the stack still runs: Jellyfin plays what is already on disk,
 Jellyseerr takes requests and the arrs track them.
+
+## Through a VPN, if you want
+
+The three services that talk to third parties — Radarr, Sonarr and Bazarr — can be
+routed through a [gluetun](docs/services/gluetun.md) tunnel, so their metadata,
+indexer and subtitle traffic leaves through your VPN provider instead of your ISP
+connection. Any of gluetun's ~50 providers works; your existing subscription
+almost certainly does.
+
+Write your provider's settings into `vpn.env`, then `./install.sh` → *VPN* → yes.
+gluetun owns the firewall for the containers it routes, so **when the tunnel drops
+they have no network at all** — that is the point. Jellyfin and Jellyseerr are
+never routed: one serves your LAN, the other talks to TMDB. Nothing is forwarded
+inbound. [Details and a worked `vpn.env`](docs/services/gluetun.md).
 
 ## Extending it
 

@@ -3,7 +3,10 @@
 secrets.env
 warden.env
 tailscale.env
+vpn.env
 active/
+# per-checkout test settings (TEST_LEDGER); never committed
+tests/local.env
 controllarr/                  # the control panel's clone; install.sh fetches it
 docker-compose.override.yml
 INSTALL-SUMMARY.txt
