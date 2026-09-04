@@ -91,6 +91,42 @@ def _bazarr_key(cfg):
         time.sleep(3)
     return None
 
+# ---------------- *arr UI login ----------------
+def _arr_style_auth(R, path, user, password, name="arr"):
+    """Turn on an *arr's own login (forms auth), once.
+
+    `R` is the app's API caller — R(path, method="GET", data=None) -> (status, body). Everything the
+    installer does reaches the arrs with the API key, so switching the UI to forms auth never breaks
+    the wiring that follows.
+
+    Two things this deliberately does not do: it never rotates a password that is already set (a
+    re-run must not silently change a login the owner has changed since), and it never fails the
+    install — an arr that refuses is logged and left alone, because the API key still works.
+    """
+    if not user or not password:
+        log.info("%s: no UI login in secrets.env, leaving authentication as it is", name)
+        return
+    st, host = R(path)
+    if not isinstance(host, dict):
+        log.warning("%s: could not read %s (%s) — authentication left as it is", name, path, st)
+        return
+    if (host.get("authenticationMethod") or "none").lower() != "none":
+        log.info("%s: authentication is already enabled — left alone", name)
+        return
+    host["authenticationMethod"] = "forms"
+    host["authenticationRequired"] = "enabled"
+    host["username"] = user
+    host["password"] = password
+    host["passwordConfirmation"] = password   # required from Radarr v5 / Sonarr v4; older builds ignore it
+    hid = host.get("id")
+    st, body = R("%s/%d" % (path, hid) if hid is not None else path, "PUT", host)
+    if 200 <= int(st) < 300:
+        log.info("%s: UI login enabled for %s", name, user)
+    else:
+        log.warning("%s: could not enable the UI login (%s: %s) — the API key is unaffected",
+                    name, st, str(body)[:120])
+
+
 # ---------------- Jellyfin ----------------
 def _jf_auth_header():
     return {"X-Emby-Authorization": 'MediaBrowser Client="installer", Device="cli", DeviceId="inst1", Version="1.0"'}
