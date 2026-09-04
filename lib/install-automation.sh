@@ -6,8 +6,12 @@ HERE="$1"; ENV_FILE="$2"; SECRETS_FILE="$3"
 ACTIVE="$HERE/active"
 OVERLAY="${MEDIA_STACK_OVERLAY:-}"
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"   # for sq()
-# shellcheck disable=SC1090
-set -a; . "$ENV_FILE"; . "$SECRETS_FILE"; set +a
+set -a
+# shellcheck source=/dev/null
+. "$ENV_FILE"
+# shellcheck source=/dev/null
+. "$SECRETS_FILE"
+set +a
 
 akey() { grep -oP '(?<=<ApiKey>)[^<]+' "$CONFIG_DIR/$1/config.xml" 2>/dev/null | head -1; }
 RADARR_APIKEY="$(akey radarr)"; SONARR_APIKEY="$(akey sonarr)"

@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Local encrypted nightly backup of the stack config. Reads $WARDEN_ENV. Cron/systemd-timer at ~03:30.
 set -uo pipefail
-[ -n "${WARDEN_ENV:-}" ] && . "$WARDEN_ENV"
+if [ -n "${WARDEN_ENV:-}" ]; then
+  # shellcheck source=/dev/null
+  . "$WARDEN_ENV"
+fi
 CONFIG_DIR="${CONFIG_DIR:-/srv/media/config}"
 DEST="${BACKUP_DIR:-$(dirname "$CONFIG_DIR")/backups}"   # same default as the installer: a backups/ directory beside CONFIG_DIR
 # The passphrase lives OUTSIDE the backup directory, so syncing BACKUP_DIR off-site never ships the key.

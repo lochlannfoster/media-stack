@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Print INSTALL-SUMMARY.txt: all URLs + credentials + next steps.  summary.sh ENV SECRETS
 set -uo pipefail
-# shellcheck disable=SC1090
-set -a; . "$1"; . "$2"; set +a
+set -a
+# shellcheck source=/dev/null
+. "$1"
+# shellcheck source=/dev/null
+. "$2"
+set +a
 H="$SERVER_HOST"
 HERE="$(cd "$(dirname "$1")" && pwd)"
 has() { case ",$COMPOSE_PROFILES," in *,$1,*) return 0;; *) return 1;; esac }

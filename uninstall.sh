@@ -10,8 +10,10 @@ source "$HERE/lib/common.sh"
 
 echo "media-stack uninstaller — full log: $LOGFILE"
 [ -f "$ENV_FILE" ] || die "No .env found in $HERE — is this an installed media-stack directory?"
-# shellcheck disable=SC1090
-set -a; . "$ENV_FILE"; set +a
+set -a
+# shellcheck source=/dev/null
+. "$ENV_FILE"
+set +a
 
 section "Confirm"
 printf "${C_RED}This will STOP and REMOVE the media-stack containers and its automation.${C_RESET}\n"

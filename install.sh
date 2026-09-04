@@ -5,6 +5,11 @@
 #
 # An overlay (see OVERLAY below) may add services, prompts, wiring and cron jobs of its own; without one
 # this installs the stack described in README.md and nothing else.
+#
+# SC2154 is off for this file: every prompt variable is filled by ask/ask_path/ask_hidden in
+# lib/common.sh, which assign through `printf -v "$__var"`. ShellCheck cannot see an assignment made
+# through a name held in a variable, so it reads every answered prompt as an unassigned reference.
+# shellcheck disable=SC2154
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOGFILE="$HERE/install-$(date +%Y%m%d-%H%M%S).log"
@@ -41,6 +46,7 @@ log INFO "installer started; overlay: ${OVERLAY:-none}"
 # ---------------------------------------------------------------------------
 # 1. PREFLIGHT
 # ---------------------------------------------------------------------------
+# shellcheck disable=SC2034   # read by check_disk() in lib/preflight.sh
 DATA_PARENT="/srv"
 preflight_checks
 command -v git >/dev/null 2>&1 || die "git is required (the control panel is cloned from its own repository)."
@@ -364,6 +370,7 @@ _wire_start=$SECONDS
 if wire_with_progress; then
   LAST_RUN_SECS=$((SECONDS - _wire_start)); step_ok "Services wired"
 else
+  # shellcheck disable=SC2034   # consumed by _elapsed() in lib/common.sh
   LAST_RUN_SECS=$((SECONDS - _wire_start))
   die "Wiring failed. The stack is up but not fully configured — fix the issue and re-run ./install.sh (it's idempotent)."
 fi

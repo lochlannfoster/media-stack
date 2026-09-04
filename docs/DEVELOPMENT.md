@@ -36,7 +36,7 @@ Container names on the compose network. Radarr / Sonarr v3: `X-Api-Key` read liv
 ## 4. Validation
 
 ```bash
-tests/run.sh lint      # bash -n (+ shellcheck), ast.parse, ruff, Markdown links
+tests/run.sh lint      # bash -n, shellcheck, ast.parse, ruff, Markdown links
 tests/run.sh unit      # tests/unit: the config loader and its settings.local overlay
 tests/run.sh compose   # docker compose config + tests/check_compose.py
 tests/run.sh all
@@ -46,6 +46,13 @@ Exit codes are 0 pass, 1 fail, 2 usage, and 3 when the repair budget is spent â€
 times over on a changed tree. At that point stop editing and report the failure, what was tried and the
 evidence that would settle it. The budget is kept by the validation ledger named in `TEST_LEDGER`, set in the
 untracked `tests/local.env`; a checkout without that file runs identically and simply records nothing.
+
+`lint` runs shellcheck from `koalaman/shellcheck:stable` when the binary is not installed, so the stage
+cannot quietly become a no-op on a machine that lacks it; it is skipped only when there is no docker
+either, and says so. Two directives it needs: `install.sh` disables SC2154 file-wide, because `ask` fills
+every prompt variable through `printf -v "$__var"` and no linter can see an assignment through a name held
+in a variable; and the two variables a sourced file consumes carry a one-line SC2034 exemption naming the
+consumer.
 
 `check_compose.py` enforces the invariants that bite silently: `container_name` equals the service key, a healthcheck and the `autoheal=true` label come as a pair, every `${VAR}` without a default is in `.env.example`, and the panel keeps its read-only socket, its pinned code mount, its `/health` probe and port 3002.
 
