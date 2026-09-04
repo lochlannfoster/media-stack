@@ -1,0 +1,81 @@
+# The suite in tests/run.sh, run where it cannot be skipped.
+#
+# Everything this stack guarantees was already checked by tests/run.sh and by the invariants in
+# tests/check_compose.py — including the one that matters most, that install.sh's CONTROLLARR_REF default
+# agrees with .env.example and names a tag. It only ever ran when someone remembered to run it. The panel
+# pin still went five commits stale, because the check that would have caught a mismatch cannot catch a
+# value that is wrong in both places at once, and nothing at all was watching the ref against reality.
+#
+# So: the suite on every push and pull request, plus one thing the suite cannot do offline — ask the
+# panel's repository whether the pinned ref actually exists.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: lint, unit, compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'   # the interpreter the containers run
+
+      # PyYAML is what tests/check_compose.py parses docker-compose.yml with; ruff is optional to the
+      # suite (it skips when absent) and that is exactly why CI installs it — a stage that quietly skips
+      # is a stage that is not running.
+      - name: Install test dependencies
+        run: python -m pip install --quiet pyyaml ruff
+
+      # shellcheck and docker compose are present on ubuntu-latest; fail loudly rather than skip if that
+      # ever stops being true.
+      - name: Check the toolchain is complete
+        run: |
+          for t in shellcheck docker ruff; do
+            command -v "$t" >/dev/null || { echo "::error::$t is missing from the runner"; exit 1; }
+          done
+          docker compose version
+
+      - name: tests/run.sh all
+        run: tests/run.sh all
+
+      - name: Collect stage logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-logs
+          path: ~/.local/state/media-stack-tests/logs/
+          if-no-files-found: ignore
+
+  panel-pin:
+    name: the pinned panel ref exists
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # install.sh fetches Controllarr at CONTROLLARR_REF. tests/check_compose.py proves the two places
+      # that state the default agree and that it looks like a tag; only the remote can say whether it is
+      # a tag that exists. A deleted or mistyped ref fails every fresh install with no local symptom.
+      - name: Resolve CONTROLLARR_REF against the panel's repository
+        run: |
+          set -eu
+          repo=$(sed -n 's/^CONTROLLARR_REPO=//p' .env.example)
+          ref=$(sed -n 's/^CONTROLLARR_REF=\([^ ]*\).*/\1/p' .env.example)
+          echo "pin: $ref in $repo"
+          [ -n "$repo" ] && [ -n "$ref" ] || { echo "::error::could not read the pin from .env.example"; exit 1; }
+          if git ls-remote --exit-code --tags "$repo" "refs/tags/$ref" >/dev/null; then
+            echo "$ref is a tag in $repo"
+          else
+            echo "::error::CONTROLLARR_REF=$ref does not exist as a tag in $repo — every fresh install would fail at the fetch"
+            exit 1
+          fi
