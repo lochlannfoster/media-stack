@@ -91,7 +91,7 @@ else
   set_sec CONTROLLARR_PASSWORD "$CONTROLLARR_PW"
 fi
 set_cfg CONTROLLARR_REPO "$(d CONTROLLARR_REPO https://github.com/lochlannfoster/controllarr.git)"
-set_cfg CONTROLLARR_REF  "$(d CONTROLLARR_REF v0.1.0)"   # a tag, never a branch: see the fetch below
+set_cfg CONTROLLARR_REF  "$(d CONTROLLARR_REF v0.2.0)"   # a tag, never a branch: see the fetch below
 
 section "Optional services"
 PROFILES=()

@@ -34,7 +34,7 @@ Values are single-quoted; keep the quotes when editing.
 | `CONFIG_DIR` · `DATA_DIR` | app data (backed up) · the media library | `/srv/media/config` · `/srv/media/data` |
 | `COMPOSE_PROFILES` | `notify` (ntfy). The core has no profile. | `notify` |
 | `JELLYFIN_PORT` `RADARR_PORT` `SONARR_PORT` `JELLYSEERR_PORT` `BAZARR_PORT` `NTFY_PORT` `CONTROLLARR_PORT` | published ports | `8096 7878 8989 5055 6767 8090 3002` |
-| `CONTROLLARR_REPO` · `CONTROLLARR_REF` | where the control panel comes from · the tag, branch or commit to install | the public repo · `v0.1.0` |
+| `CONTROLLARR_REPO` · `CONTROLLARR_REF` | where the control panel comes from · the tag, branch or commit to install | the public repo · `v0.2.0` |
 | `CONTROLLARR_REFRESH` | seconds between library scans in the panel | `15` |
 | `AUDIO_LANGUAGE` | `Original`/`English`/`Japanese`/`Any`, on Radarr's quality profiles (Sonarr v4 has no such field) | `Original` |
 | `SUBTITLE_LANGS` · `MEDIAUSER_COUNT` | Bazarr codes · number of `MEDIAUSER_N` | `en` · `1` |
